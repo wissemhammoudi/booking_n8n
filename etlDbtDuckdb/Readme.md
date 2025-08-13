@@ -14,7 +14,7 @@ Lightweight local ETL using dbt Core and DuckDB. It transforms raw customer shop
 1) Clone and enter the project
 
 ```bash
-git clone <YOUR_REPO_URL>
+git clone https://github.com/wissemhammoudi/etl-using-Dbt-and-DuckDB.git
 cd etlDbtDuckdb
 ```
 
