@@ -1,0 +1,180 @@
+{
+  "name": "avialble time slot",
+  "nodes": [
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "0dfb2e43-9cb0-47f9-9183-3f567cc8d436",
+      "name": "Send Response1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        2464,
+        768
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get data from previous nodes\nconst configData = $('Configure Slots1').first().json;\nconst calendarEvents = $('Check My Calendar1').all();\n\nif (!configData.requestedDate) {\n  throw new Error('Missing requestedDate in Configure Slots1 data');\n}\n\nconst requestedDate = configData.requestedDate;\nconst timeSlots = configData.availableTimeSlots || [];\n\nconst dateObj = new Date(requestedDate + 'T00:00:00');\nconst dayOfWeek = dateObj.getDay();\nconst dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];\nconst isWeekend = dayOfWeek === 0 || dayOfWeek === 6;\n\n// Check for \"Day Off\" all-day event\nlet isDayOff = false;\nfor (const event of calendarEvents) {\n  if (!event.json) continue;\n  \n  const summary = (event.json.summary || '').toLowerCase();\n  const isAllDay = event.json.start?.date && !event.json.start?.dateTime;\n  \n  if (isAllDay && summary === 'day off') {\n    isDayOff = true;\n    break;\n  }\n}\n\nif ( isDayOff) {\n  return {\n    success: true,\n    date: requestedDate,\n    dayName: dayName,\n    isWeekend: isWeekend,\n    isDayOff: isDayOff,\n    availableSlots: [],\n    bookedSlots: [],\n    message: isWeekend ? 'Weekend - No appointments available' : 'Day Off - No appointments available'\n  };\n}\n\nconst processedSlots = timeSlots.map(slot => {\n  const slotStart = new Date(`${requestedDate}T${slot.time}:00+01:00`);\n  const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);\n  \n  let isBooked = false;\n  let conflictReason = '';\n  \n  for (const event of calendarEvents) {\n    if (!event.json?.start?.dateTime || !event.json?.end?.dateTime) continue;\n    \n    const eventStart = new Date(event.json.start.dateTime);\n    const eventEnd = new Date(event.json.end.dateTime);\n    \n    if (eventStart < slotEnd && eventEnd > slotStart) {\n      isBooked = true;\n      conflictReason = event.json.summary || 'Busy';\n      break;\n    }\n  }\n  \n  return {\n    time: slot.time,\n    display: slot.display,\n    available: !isBooked,\n    reason: isBooked ? conflictReason : 'Available'\n  };\n});\n\nconst availableSlots = processedSlots.filter(s => s.available);\nconst bookedSlots = processedSlots.filter(s => !s.available);\n\nreturn {\n  success: true,\n  date: requestedDate,\n  dayName: dayName,\n  isWeekend: false,\n  isDayOff: false,\n  availableSlots: availableSlots,\n  bookedSlots: bookedSlots,\n  message: availableSlots.length > 0 \n    ? `${availableSlots.length} slots available` \n    : 'No slots available'\n};"
+      },
+      "id": "81c5fa5a-a1fe-4f36-b3d0-32283a01a3d7",
+      "name": "Process Availability1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2304,
+        768
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "wissham25@gmail.com",
+          "mode": "list"
+        },
+        "options": {
+          "timeMin": "={{ $json.requestedDate + 'T00:00:00+01:00' }}",
+          "timeMax": "={{ $json.requestedDate + 'T23:59:59+01:00' }}",
+          "singleEvents": true,
+          "orderBy": "startTime"
+        }
+      },
+      "id": "0f5c488c-b2a9-4533-be72-5f532d7ba224",
+      "name": "Check My Calendar1",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [
+        2128,
+        768
+      ],
+      "typeVersion": 1,
+      "alwaysOutputData": true,
+      "retryOnFail": false,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "k15oBfSIXYGKWMfT",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "timeslots-config",
+              "name": "availableTimeSlots",
+              "type": "array",
+              "value": "[{\"time\":\"09:30\",\"display\":\"9:30 AM - 10:30 AM\"},{\"time\":\"10:30\",\"display\":\"10:30 AM - 11:30 AM\"},{\"time\":\"11:30\",\"display\":\"11:30 AM - 12:30 PM\"},{\"time\":\"14:30\",\"display\":\"2:30 PM - 3:30 PM\"},{\"time\":\"15:30\",\"display\":\"3:30 PM - 4:30 PM\"},{\"time\":\"16:30\",\"display\":\"4:30 PM - 5:30 PM\"},{\"time\":\"17:30\",\"display\":\"5:30 PM - 6:30 PM\"},{\"time\":\"20:30\",\"display\":\"8:30 PM - 9:30 PM\"}]"
+            },
+            {
+              "id": "date-input",
+              "name": "requestedDate",
+              "type": "string",
+              "value": "={{ $json.body.date || $today.format('yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3a50dee4-df6f-4deb-bf89-ec720ec9556e",
+      "name": "Configure Slots1",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1968,
+        768
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "check-booking-date",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "f2e3d0b2-8729-4d5e-8492-59aa531d9a16",
+      "name": "Booking Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        1760,
+        768
+      ],
+      "webhookId": "booking-webhook",
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Process Availability1": {
+      "main": [
+        [
+          {
+            "node": "Send Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check My Calendar1": {
+      "main": [
+        [
+          {
+            "node": "Process Availability1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configure Slots1": {
+      "main": [
+        [
+          {
+            "node": "Check My Calendar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Configure Slots1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b872c640-f3ca-47ee-886f-d6bba07f2cbb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5a5e7a6ec85eb9208d521d6ea39a50384b6ff97efbe7ab8e0f9a308a90b06117"
+  },
+  "id": "Z5UIe7N2pZib2Rz8",
+  "tags": []
+}

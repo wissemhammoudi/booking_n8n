@@ -1,0 +1,585 @@
+{
+  "name": "booking",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const bookingData = $input.first().json.bookingData;\n\nconst [year, month, day] = bookingData.date.split('-').map(Number);\nconst [hour, minute] = bookingData.time.split(':').map(Number);\n\nconst allowedSlots = [\n  '09:30', '10:30', '11:30',  \n  '14:30', '15:30', '16:30', '17:30',\n  '20:30'  \n];\n\nconst requestedTime = bookingData.time;\nconst isValidSlot = allowedSlots.includes(requestedTime);\n\nlet errorMessage = '';\nif (!isValidSlot) {\n  errorMessage = `Invalid time slot. Available slots: 9:30 AM, 10:30 AM, 11:30 AM, 2:30 PM, 3:30 PM, 4:30 PM, 5:30 PM, 8:30 PM (Tunisia time)`;\n}\n\nconst startDateTime = `${bookingData.date}T${bookingData.time}:00+01:00`;\nconst endHour = (hour + 1).toString().padStart(2, '0');\nconst endDateTime = `${bookingData.date}T${endHour}:${minute.toString().padStart(2, '0')}:00+01:00`;\n\nreturn {\n  isValidTime: isValidSlot,\n  errorMessage: errorMessage,\n  bookingData: bookingData,\n  startDateTime: startDateTime,\n  endDateTime: endDateTime,\n  requestedSlot: requestedTime\n};"
+      },
+      "id": "8eb6adb1-f2fd-4049-a100-f33796813de4",
+      "name": "Time Slot Check",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1696,
+        -16
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 1
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "time-valid",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.isValidTime }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2f229bfc-5ebd-4a41-99e9-ec544ddde651",
+      "name": "Time Valid Check",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -1504,
+        -16
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "wissham25@gmail.com",
+          "mode": "list"
+        },
+        "options": {
+          "timeMin": "={{ $json.startDateTime }}",
+          "timeMax": "={{ $json.endDateTime }}",
+          "singleEvents": true
+        }
+      },
+      "id": "bc3ea80e-1675-4be5-bb7f-d514e07e850b",
+      "name": "Check My Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [
+        -1104,
+        -16
+      ],
+      "typeVersion": 1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "k15oBfSIXYGKWMfT",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "6a0ee850-c44a-46bf-a929-073f1674b1c4",
+      "name": "Validation Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        -1904,
+        384
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "make-booking",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "4a06cbe9-94f9-4f18-ac87-09bcf012a58d",
+      "name": "Booking Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -2496,
+        -16
+      ],
+      "webhookId": "booking-webhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst inputData = $input.first().json.body || {};\n\nconst bookingData = {\n  name: inputData.name || '',\n  email: inputData.email || '',\n  phone: inputData.phone || '',\n  date: inputData.date || '',\n  time: inputData.time || '',\n  source: inputData.source || 'Website',\n  timestamp: new Date().toISOString()\n};\n\nconst requiredFields = ['name', 'email', 'phone', 'date', 'time'];\nconst missingFields = requiredFields.filter(field => !bookingData[field]);\n\nif (missingFields.length > 0) {\n  return {\n    success: false,\n    error: `Missing required fields: ${missingFields.join(', ')}`,\n    bookingData: null\n  };\n}\n\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (!emailRegex.test(bookingData.email)) {\n  return {\n    success: false,\n    error: 'Invalid email format',\n    bookingData: null\n  };\n}\n\nconst phoneRegex = /^[+]?[0-9\\s\\-()]{8,}$/;\nif (!phoneRegex.test(bookingData.phone)) {\n  return {\n    success: false,\n    error: 'Invalid phone number format',\n    bookingData: null\n  };\n}\n\nconst dateRegex = /^\\d{4}-\\d{2}-\\d{2}$/;\nif (!dateRegex.test(bookingData.date)) {\n  return {\n    success: false,\n    error: 'Invalid date format. Use YYYY-MM-DD',\n    bookingData: null\n  };\n}\n\nconst timeRegex = /^\\d{2}:\\d{2}$/;\nif (!timeRegex.test(bookingData.time)) {\n  return {\n    success: false,\n    error: 'Invalid time format. Use HH:MM',\n    bookingData: null\n  };\n}\n\nreturn {\n  success: true,\n  error: null,\n  bookingData: bookingData\n};"
+      },
+      "id": "5d3ef506-effa-4cf2-8b7c-3314332bebcd",
+      "name": "Validate Input1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2304,
+        -16
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "validation-success",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.success }}",
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "47c04766-3f17-4e44-b782-fe68b4eee2c7",
+      "name": "Validation Check1",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -2096,
+        -16
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check calendar availability\nconst calendarEvents = $input.all();\nconst timeCheckData = $('Time Valid Check').first().json;\nconst bookingData = timeCheckData.bookingData;\nconst startDateTime = timeCheckData.startDateTime;\nconst endDateTime = timeCheckData.endDateTime;\n\nconst requestStart = new Date(startDateTime);\nconst requestEnd = new Date(endDateTime);\n\n// Check for holiday (all-day event with holiday keywords)\nlet isHoliday = false;\nlet holidayName = '';\n\nfor (const event of calendarEvents) {\n  if (!event.json) continue;\n  \n  const isAllDay = event.json.start?.date && !event.json.start?.dateTime;\n  const summary = (event.json.summary || '').toLowerCase();\n  const isHolidayKeyword = summary.includes('holiday') || \n                          summary.includes('off') || \n                          summary.includes('vacation') || \n                          summary.includes('closed') ||\n                          summary.includes('day off');\n  \n  if (isAllDay && isHolidayKeyword) {\n    isHoliday = true;\n    holidayName = event.json.summary;\n    break;\n  }\n}\n\nif (isHoliday) {\n  return {\n    isAvailable: false,\n    availabilityMessage: `Sorry, we are closed on this date: ${holidayName}`,\n    bookingData: bookingData,\n    startDateTime: startDateTime,\n    endDateTime: endDateTime,\n    reason: 'holiday'\n  };\n}\n\n// Check for time slot conflicts\nconst conflictingEvents = calendarEvents.filter(event => {\n  if (!event.json) return false;\n  \n  // Skip all-day events\n  if (event.json.start?.date && !event.json.start?.dateTime) return false;\n  \n  const eventStart = new Date(event.json.start?.dateTime);\n  const eventEnd = new Date(event.json.end?.dateTime);\n  \n  // Check for overlap\n  return (eventStart < requestEnd && eventEnd > requestStart);\n});\n\nconst isAvailable = conflictingEvents.length === 0;\n\nlet availabilityMessage = '';\nif (!isAvailable) {\n  availabilityMessage = `This time slot is already booked. Please choose another time.`;\n}\n\nreturn {\n  isAvailable: isAvailable,\n  availabilityMessage: availabilityMessage,\n  conflictingEvents: conflictingEvents,\n  bookingData: bookingData,\n  startDateTime: startDateTime,\n  endDateTime: endDateTime,\n  reason: isAvailable ? 'available' : 'conflict'\n};"
+      },
+      "id": "682350ea-889a-4d72-83d1-da8bfd226375",
+      "name": "Check Availability1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -896,
+        -16
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "slot-available",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.isAvailable }}",
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "58c9c505-36b6-487c-b52d-3b4287c43893",
+      "name": "Availability Check1",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -688,
+        -16
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "wissham25@gmail.com",
+          "mode": "list"
+        },
+        "start": "={{ $('Check Availability1').first().json.startDateTime }}",
+        "end": "={{ $('Check Availability1').first().json.endDateTime }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ $('Check Availability1').first().json.bookingData.email }}"
+          ],
+          "description": "=Phone: {{ $('Check Availability1').first().json.bookingData.phone }}\\nSource: {{ $('Check Availability1').first().json.bookingData.source }}",
+          "summary": "=Booking: {{ $('Check Availability1').first().json.bookingData.name }}"
+        }
+      },
+      "id": "041f8c2a-1a1a-4556-86d1-815955d6d395",
+      "name": "Create Calendar Event1",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [
+        -432,
+        -16
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "k15oBfSIXYGKWMfT",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const calendarEvent = $input.first().json;\nconst bookingData = $('Check Availability1').first().json.bookingData;\n\nreturn {\n  success: true,\n  message: 'Booking confirmed successfully!',\n  bookingDetails: {\n    name: bookingData.name,\n    email: bookingData.email,\n    phone: bookingData.phone,\n    date: bookingData.date,\n    time: bookingData.time,\n    eventId: calendarEvent.id,\n    eventLink: calendarEvent.htmlLink\n  },\n  confirmationMessage: `Hi ${bookingData.name}, your booking is confirmed for ${bookingData.date} at ${bookingData.time} (Tunisia time). You will receive a calendar invitation.`\n};"
+      },
+      "id": "336c7cb5-3f86-4333-8995-5be36805ba24",
+      "name": "Prepare Success Response1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -96,
+        -16
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "71fb527e-be97-4ed2-9132-8e317d7850d5",
+      "name": "Success Response1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        112,
+        -16
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const errorData = $input.first().json;\n\nreturn {\n  success: false,\n  error: errorData.error,\n  message: 'Booking validation failed'\n};"
+      },
+      "id": "2a9b7b4e-354c-4259-9d4c-c759ed9900e1",
+      "name": "Prepare Validation Error1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1904,
+        192
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const errorData = $input.first().json;\n\nreturn {\n  success: false,\n  error: errorData.errorMessage,\n  message: 'Invalid time slot',\n  availableSlots: '9:30 AM, 10:30 AM, 11:30 AM, 2:30 PM, 3:30 PM, 4:30 PM, 5:30 PM, 8:30 PM'\n};"
+      },
+      "id": "0dd28a82-0eea-4d0a-af74-aa121a0b040e",
+      "name": "Prepare Time Error1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1296,
+        192
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7e54d90e-e58d-455c-a9e5-86d411a2a08b",
+      "name": "Time Error Response1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        -1296,
+        384
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const errorData = $input.first().json;\n\nreturn {\n  success: false,\n  error: errorData.availabilityMessage,\n  message: 'Time slot not available',\n  suggestion: 'Please choose a different date or time'\n};"
+      },
+      "id": "31c31e0f-cd8f-4274-be21-56ee0ac8b631",
+      "name": "Prepare Availability Error1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -496,
+        192
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "d18c8152-495c-4883-b097-a67c1ef8d4f2",
+      "name": "Availability Error Response1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        -496,
+        384
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Booking Webhook1').item.json.body.email }}",
+        "subject": "Confirmation de votre rendez-vous",
+        "message": "=Bonjour {{ $('Booking Webhook1').item.json.body.namea }},\n\nNous vous confirmons que vous avez réservé un rendez-vous le {{ $('Booking Webhook1').item.json.body.date }} à {{ $('Booking Webhook1').item.json.body.time }}.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -272,
+        -16
+      ],
+      "id": "f9f76f6b-e89c-4c7e-94aa-fac4ce7cd726",
+      "name": "Send a message",
+      "webhookId": "fe182f8b-4dc1-41ca-a758-df415b25c59e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "wsm0EIKduuY7zppf",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Time Slot Check": {
+      "main": [
+        [
+          {
+            "node": "Time Valid Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Time Valid Check": {
+      "main": [
+        [
+          {
+            "node": "Check My Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Time Error1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check My Calendar": {
+      "main": [
+        [
+          {
+            "node": "Check Availability1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Validate Input1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input1": {
+      "main": [
+        [
+          {
+            "node": "Validation Check1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Check1": {
+      "main": [
+        [
+          {
+            "node": "Time Slot Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Validation Error1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Availability1": {
+      "main": [
+        [
+          {
+            "node": "Availability Check1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Availability Check1": {
+      "main": [
+        [
+          {
+            "node": "Create Calendar Event1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Availability Error1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Calendar Event1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Success Response1": {
+      "main": [
+        [
+          {
+            "node": "Success Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Validation Error1": {
+      "main": [
+        [
+          {
+            "node": "Validation Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Time Error1": {
+      "main": [
+        [
+          {
+            "node": "Time Error Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Availability Error1": {
+      "main": [
+        [
+          {
+            "node": "Availability Error Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Prepare Success Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9345d937-7f0e-458a-999a-f7c9225f6e6b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5a5e7a6ec85eb9208d521d6ea39a50384b6ff97efbe7ab8e0f9a308a90b06117"
+  },
+  "id": "v5m7m6TN5a5j5nli",
+  "tags": []
+}
