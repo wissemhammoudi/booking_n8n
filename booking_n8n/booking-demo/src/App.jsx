@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import BookingForm from './components/BookingForm';
-import ChatInterface from './components/ChatInterface';
-import ToggleSwitch from './components/ToggleSwitch';
 import BusinessHours from './components/BusinessHours';
 import './styles/App.css';
 
-const MAIN_URL_MAKE_BOOKING = 'http://n8n-dev:5678/webhook/make-booking';
-const MAIN_URL_CHECK_BOOKING = 'http://n8n-dev:5678/webhook/check-booking-date';
+const MAIN_URL_MAKE_BOOKING = 'http://localhost:5678/webhook/make-booking';
+const MAIN_URL_CHECK_BOOKING = 'http://localhost:5678/webhook/check-booking-date';
 
 function App() {
-  const [chatMode, setChatMode] = useState(false);
   const [theme, setTheme] = useState('default');
   const [iframeMode, setIframeMode] = useState(false);
 
@@ -29,36 +26,21 @@ function App() {
     }
   }, []);
 
-  const toggleMode = () => {
-    setChatMode(!chatMode);
-  };
-
   return (
     <div className={`app ${theme === 'teal' ? 'teal-theme' : ''} ${iframeMode ? 'iframe-mode' : ''}`}>
       <div className="container">
         <div className="header">
-          <h1><i className="fas fa-calendar-check"></i> learning Booking System</h1>
+          <h1><i className="fas fa-calendar-check"></i> Learning Booking System</h1>
           <p>Book your appointment with time slot selection</p>
         </div>
 
         <div className="form-container">
-          <ToggleSwitch 
-            chatMode={chatMode} 
-            onToggle={toggleMode}
+          <BookingForm 
+            checkBookingUrl={MAIN_URL_CHECK_BOOKING}
+            makeBookingUrl={MAIN_URL_MAKE_BOOKING}
+            iframeMode={iframeMode}
           />
-
-          {!chatMode ? (
-            <>
-              <BookingForm 
-                checkBookingUrl={MAIN_URL_CHECK_BOOKING}
-                makeBookingUrl={MAIN_URL_MAKE_BOOKING}
-                iframeMode={iframeMode}
-              />
-              <BusinessHours />
-            </>
-          ) : (
-            <ChatInterface />
-          )}
+          <BusinessHours />
         </div>
       </div>
     </div>
@@ -66,4 +48,3 @@ function App() {
 }
 
 export default App;
-

@@ -73,7 +73,7 @@ const BookingForm = ({ checkBookingUrl, makeBookingUrl, iframeMode }) => {
       setAvailableSlots(data.availableSlots || []);
 
     } catch (error) {
-      console.error("❌ Slot load error:", error);
+      console.error(" Slot load error:", error);
       showToast('Error checking slot availability', 'error');
       setAvailableSlots([]);
     } finally {
